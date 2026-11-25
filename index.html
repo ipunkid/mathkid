@@ -616,6 +616,7 @@ html[data-style="field-manual"] .h1,html[data-style="field-manual"] .h2,html[dat
   --sky-top:#d9edff; --sky-mid:#eef6fb; --sky-bot:#e9f4e3;
   --gutter:16px;
 }
+.wrap{min-height:100vh;min-height:100dvh}
 
 /* ---------- 通用小件 ---------- */
 .intro{margin:auto 0;width:100%;align-items:center;gap:clamp(10px,2.2vmin,18px)}
@@ -670,13 +671,18 @@ html[data-style="field-manual"] .h1,html[data-style="field-manual"] .h2,html[dat
 .fb.bad{color:var(--red-d)}
 
 .keypad{
+  /* 键盘高度随视口变化，行高由容器高度均分，不再用固定按钮高度，
+     这样任何矮屏（横屏手机 / 浏览器工具条占位）都不会把最后一排挤出父容器 */
   flex:0 0 auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:clamp(8px,1.6vmin,12px);width:100%;max-width:520px;margin:0 auto;
+  grid-auto-rows:minmax(0,1fr);
+  gap:clamp(7px,1.4vmin,12px);width:100%;max-width:520px;margin:0 auto;
+  height:clamp(184px,39vh,330px);
+  height:clamp(184px,39dvh,330px);
 }
 .key{
   --c:var(--white);--cd:var(--rim);
-  height:clamp(50px,8.6dvh,74px);min-height:0;padding:0;border-radius:16px;
-  font-family:var(--f-display);font-size:clamp(21px,4.2vmin,28px);
+  height:100%;min-height:0;padding:0;border-radius:16px;
+  font-family:var(--f-display);font-size:clamp(20px,4.2vmin,28px);
   letter-spacing:0;text-transform:none;
 }
 .key.del{color:var(--red-d);font-family:var(--f-body);font-size:clamp(15px,2.9vmin,19px);font-weight:800}
@@ -707,10 +713,11 @@ html[data-style="field-manual"] .h1,html[data-style="field-manual"] .h2,html[dat
 .wron-row .u{color:var(--red-d);font-variant-numeric:tabular-nums}
 
 /* ---------- 横屏：题目与键盘左右分栏 ---------- */
-@media (orientation:landscape) and (min-width:720px){
-  .play-body{flex-direction:row;align-items:stretch}
-  .qcard{flex:1 1 52%}
-  .keypad{flex:0 0 44%;align-self:center}
+@media (orientation:landscape) and (min-width:600px){
+  .play-body{flex-direction:row;align-items:stretch;gap:clamp(10px,2vmin,18px)}
+  .qcard{flex:1 1 auto;min-width:0}
+  .keypad{flex:0 0 44%;max-width:500px;margin:0;align-self:center;
+    height:clamp(180px,60vh,360px);height:clamp(180px,60dvh,360px)}
   .eqn{font-size:clamp(34px,9vmin,76px)}
   .slot{font-size:inherit}
   .intro{gap:10px}
@@ -718,6 +725,35 @@ html[data-style="field-manual"] .h1,html[data-style="field-manual"] .h2,html[dat
 }
 @media (min-width:720px){
   .rules{grid-template-columns:repeat(4,minmax(0,1fr));max-width:680px}
+}
+/* ---------- 矮视口：进一步压缩，确保键盘最后一排不被父容器/视口裁切 ---------- */
+@media (max-height:560px){
+  .screen.play .topbar{min-height:40px}
+  .screen.play .topbar .rbtn{width:40px;height:40px;border-radius:13px}
+  .hud{gap:8px}
+  .play-body{gap:8px}
+  #timer{font-size:clamp(13px,2.6vmin,16px);padding:2px 10px}
+  .keypad{gap:6px}
+  .key{border-radius:13px;font-size:clamp(18px,3.6vmin,24px)}
+  .eqn{font-size:clamp(28px,7.4vmin,52px)}
+  .fb{font-size:clamp(12px,2.2vmin,15px)}
+}
+/* 矮屏且窄（竖屏手机 / 窄横屏）：键盘高度按视口缩放；宽屏横屏由上面的分栏规则决定 */
+@media (max-height:560px) and (max-width:599px){
+  .keypad{height:clamp(150px,44vh,300px);height:clamp(150px,44dvh,300px)}
+}
+/* 极端矮视口（老机型横屏）：直接改为左右分栏，纵向空间立刻够用，绝不裁切按钮 */
+@media (max-height:360px){
+  .screen.play{overflow:hidden}
+  .screen.play .topbar{min-height:34px}
+  .screen.play .topbar .rbtn{width:34px;height:34px;border-radius:11px}
+  .play-body{flex-direction:row;align-items:stretch;gap:8px}
+  .qcard{flex:1 1 auto;min-width:0;padding:6px}
+  .keypad{flex:0 0 46%;max-width:300px;margin:0;align-self:center;gap:5px;
+    height:clamp(120px,58vh,220px);height:clamp(120px,58dvh,220px)}
+  .key{border-radius:11px;font-size:clamp(16px,3.2vmin,22px)}
+  .eqn{font-size:clamp(22px,6vmin,40px)}
+  .fb{font-size:clamp(11px,2vmin,13px)}
 }
 @media (prefers-reduced-motion:reduce){
   #timer.low{animation:none}
