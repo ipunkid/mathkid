@@ -8,7 +8,8 @@
 <title>口算小达人 · 10分钟挑战</title>
 <!--
   DESIGN BRIEF (依据用户已给出的要求，未自行改动内容)
-  Game: 口算小达人 — 60 题 / 10 分钟，加减乘除各 15 题，每题一个空格作答
+  Game: 口算小达人 — 60 题 / 10 分钟，加减乘除各 15 题；加法≤100、乘法积≤100、除法被除数≤100；
+        每题只有一个空格，位置在「结果 / 左侧因数 / 右侧因数」三者间随机（如 9 × __ = 90）
   Technology: 单文件 HTML（kit.css + kit.js 内联）   Platform: Web（GitHub Pages + 本地文件）
   Preferred size: 手机竖屏优先，平板竖屏/横屏自适应（both）
   Colors: Ink Candy 默认调色板（用户指定 ink candy 风格）  Sound: 开（WebAudio 合成 + 轻震动）
@@ -647,6 +648,7 @@ html[data-style="field-manual"] .h1,html[data-style="field-manual"] .h2,html[dat
   font-size:clamp(34px,9.4vmin,72px);color:var(--ink);
 }
 .eqn .op{color:var(--azure-d)}
+.eqn .num.ghost{display:none}
 .eqn .eq{color:var(--mut);font-size:.82em}
 .slot{
   display:inline-flex;align-items:center;justify-content:center;gap:.04em;
@@ -743,11 +745,11 @@ html[data-style="field-manual"] .h1,html[data-style="field-manual"] .h2,html[dat
       <div class="rules">
         <div class="card rule"><span class="op-badge" aria-hidden="true">+</span><b>加法</b><span>和不超过 100</span></div>
         <div class="card rule"><span class="op-badge" aria-hidden="true">−</span><b>减法</b><span>不超过 100</span></div>
-        <div class="card rule"><span class="op-badge" aria-hidden="true">×</span><b>乘法</b><span>最大 6 × 6</span></div>
-        <div class="card rule"><span class="op-badge" aria-hidden="true">÷</span><b>除法</b><span>最大 36 ÷ 6</span></div>
+        <div class="card rule"><span class="op-badge" aria-hidden="true">×</span><b>乘法</b><span>积不超过 100</span></div>
+        <div class="card rule"><span class="op-badge" aria-hidden="true">÷</span><b>除法</b><span>被除数不超过 100</span></div>
       </div>
 
-      <p class="title-note">每题只有一个空格，用下面的数字键作答</p>
+      <p class="title-note">每题一个空格：有时填结果，有时填中间的数（如 9 × <b>?</b> = 90）</p>
     </div>
 
     <div class="dock">
@@ -774,11 +776,12 @@ html[data-style="field-manual"] .h1,html[data-style="field-manual"] .h2,html[dat
     <div class="play-body">
       <div class="panel qcard" id="qcard">
         <div class="eqn" id="eqn" aria-live="polite">
-          <span class="num" id="q-left">1</span>
+          <span class="num" id="c0">1</span>
           <b class="op" id="q-op">+</b>
-          <span class="num" id="q-right">1</span>
+          <span class="num" id="c1">1</span>
           <span class="eq">=</span>
-          <span class="slot"><span id="typed"></span><i class="caret" id="caret"></i></span>
+          <span class="num" id="c2">2</span>
+          <span class="slot" id="slot"><span id="typed"></span><i class="caret" id="caret"></i></span>
         </div>
         <div class="fb" id="fb" aria-live="polite"></div>
       </div>
@@ -1317,9 +1320,13 @@ html[data-style="field-manual"] .h1,html[data-style="field-manual"] .h2,html[dat
   const TOTAL = 60;
   const DURATION = 10 * 60 * 1000;
   const PER_TYPE = TOTAL / 4;
-  const MAX_ADD = 100;
-  const MAX_MUL_FACTOR = 6;
-  const MAX_DIVIDEND = 36;
+  const MAX_ADD = 100;        // 加法：和 ≤ 100
+  const MAX_MUL = 100;        // 乘法：积 ≤ 100；除法：被除数 ≤ 100
+  const FACTOR_MIN = 2;       // 乘除法因数 / 除数 / 商的下限
+  const FACTOR_MAX = 12;      // 乘除法因数 / 除数 / 商的上限（允许 9×11=99）
+  const BLANK_LEFT = 0;
+  const BLANK_RIGHT = 1;
+  const BLANK_RESULT = 2;
   const MAX_DIGITS = 3;
   const TICK_MS = 200;
   const DELAY_RIGHT = 380;
@@ -1330,15 +1337,24 @@ html[data-style="field-manual"] .h1,html[data-style="field-manual"] .h2,html[dat
   /* ============ data：出题 ============ */
   const rand = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
 
+  // 反复抽样直到满足条件（条件不苛刻，最多几次即可命中）
+  const drawPair = (accept) => {
+    for (let guard = 0; guard < 200; guard++) {
+      const a = rand(FACTOR_MIN, FACTOR_MAX), b = rand(FACTOR_MIN, FACTOR_MAX);
+      if (accept(a, b)) return [a, b];
+    }
+    return [FACTOR_MIN, FACTOR_MIN];
+  };
+
   const MAKERS = [
     // 加法：和 ≤ 100
     () => { const sum = rand(11, MAX_ADD), a = rand(1, sum - 1); return { a, op: "+", b: sum - a, ans: sum }; },
     // 减法：被减数 ≤ 100，结果 ≥ 0
     () => { const a = rand(11, MAX_ADD), b = rand(1, a); return { a, op: "−", b, ans: a - b }; },
-    // 乘法：因数 2~6，最大 6×6=36
-    () => { const a = rand(2, MAX_MUL_FACTOR), b = rand(2, MAX_MUL_FACTOR); return { a, op: "×", b, ans: a * b }; },
-    // 除法：被除数 = 商×除数 ≤ 36，除数 2~6，整除
-    () => { const b = rand(2, MAX_MUL_FACTOR), q = rand(2, MAX_MUL_FACTOR); return { a: b * q, op: "÷", b, ans: q }; },
+    // 乘法：因数 2~12，积 ≤ 100（如 9×11=99）
+    () => { const [a, b] = drawPair((x, y) => x * y <= MAX_MUL); return { a, op: "×", b, ans: a * b }; },
+    // 除法：除数与商 2~12，被除数 ≤ 100（如 99÷9=11）
+    () => { const [b, q] = drawPair((x, y) => x * y <= MAX_MUL); return { a: b * q, op: "÷", b, ans: q }; },
   ];
 
   const shuffle = (list) => {
@@ -1347,6 +1363,13 @@ html[data-style="field-manual"] .h1,html[data-style="field-manual"] .h2,html[dat
       [list[i], list[j]] = [list[j], list[i]];
     }
     return list;
+  };
+
+  // 空位：结果 / 中间数（左 / 右）各占三分之一，同一轮内均衡分配
+  const BLANK_CYCLE = [BLANK_RESULT, BLANK_LEFT, BLANK_RIGHT];
+  const withBlank = (q, index) => {
+    const blank = BLANK_CYCLE[index % BLANK_CYCLE.length];
+    return { ...q, blank, hidden: [q.a, q.b, q.ans][blank] };
   };
 
   function buildQuestions() {
@@ -1359,7 +1382,7 @@ html[data-style="field-manual"] .h1,html[data-style="field-manual"] .h2,html[dat
         const key = q.a + q.op + q.b;
         if (seen.has(key)) continue;
         seen.add(key);
-        list.push(q);
+        list.push(withBlank(q, made));
         made++;
       }
     });
@@ -1384,9 +1407,7 @@ html[data-style="field-manual"] .h1,html[data-style="field-manual"] .h2,html[dat
   /* ============ ui：渲染 ============ */
   function renderQuestion() {
     const q = current();
-    setText($("#q-left"), q.a);
-    setText($("#q-op"), q.op);
-    setText($("#q-right"), q.b);
+    renderEquation(q);
     state.typed = "";
     renderTyped();
     $("#qcard").classList.remove("ok", "no");
@@ -1395,6 +1416,18 @@ html[data-style="field-manual"] .h1,html[data-style="field-manual"] .h2,html[dat
     setText($("#play-chip"), "第 " + (state.index + 1) + " / " + TOTAL + " 题");
     setText($("#score"), "答对 " + state.right);
     state.locked = false;
+  }
+
+  // 题面：[数] 运算符 [数] = [数]，把空格放到 q.blank 指出的位置上
+  function renderEquation(q) {
+    const cells = [$("#c0"), $("#c1"), $("#c2")];
+    const values = [q.a, q.b, q.ans];
+    setText($("#q-op"), q.op);
+    cells.forEach((cell, i) => {
+      setText(cell, String(values[i]));
+      cell.classList.toggle("ghost", i === q.blank);
+    });
+    cells[q.blank].parentNode.insertBefore($("#slot"), cells[q.blank].nextSibling);
   }
 
   function renderTyped() {
@@ -1421,7 +1454,7 @@ html[data-style="field-manual"] .h1,html[data-style="field-manual"] .h2,html[dat
     state.locked = true;
     const q = current();
     const answer = parseInt(state.typed, 10);
-    const ok = answer === q.ans;
+    const ok = answer === q.hidden;
     state.results.push({ a: q.a, op: q.op, b: q.b, ans: q.ans, mine: answer, ok });
     if (ok) { state.right++; setText($("#score"), "答对 " + state.right); }
     markAnswer(ok, q);
@@ -1431,7 +1464,7 @@ html[data-style="field-manual"] .h1,html[data-style="field-manual"] .h2,html[dat
   function markAnswer(ok, q) {
     $("#qcard").classList.add(ok ? "ok" : "no");
     $("#fb").classList.toggle("bad", !ok);
-    setText($("#fb"), ok ? pickPraise() : "正确答案是 " + q.ans);
+    setText($("#fb"), ok ? pickPraise() : "正确答案是 " + q.hidden);
     G.sfx(ok ? "good" : "bad");
     G.buzz(ok ? 18 : [30, 40, 30]);
   }
